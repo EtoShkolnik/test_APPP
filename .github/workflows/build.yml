@@ -8,6 +8,7 @@ jobs:
     steps:
     - name: Create Project Structure
       run: |
+        python3 << 'PYTHON_SCRIPT'
         import os
         import textwrap
 
@@ -226,6 +227,7 @@ jobs:
                 f.write(content)
 
         print("Project generated successfully!")
+        PYTHON_SCRIPT
 
     - name: Set up JDK 17
       uses: actions/setup-java@v3
