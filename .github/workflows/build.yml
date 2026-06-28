@@ -8,226 +8,207 @@ jobs:
     steps:
     - name: Create Project Structure
       run: |
-        python3 << 'PYTHON_SCRIPT'
-        import os
-        import textwrap
+        mkdir -p app/src/main/java/com/example/totpapp
+        mkdir -p app/src/main/res/values
 
-        def d(s): return textwrap.dedent(s).strip()
-
-        paths = [
-            "app/src/main/java/com/example/totpapp",
-            "app/src/main/res/values"
-        ]
-        for p in paths:
-            os.makedirs(p, exist_ok=True)
-
-        files = {
-            "settings.gradle.kts": d("""\
-            pluginManagement {
-                repositories {
-                    google()
-                    mavenCentral()
-                    gradlePluginPortal()
-                }
+        cat << 'EOF' > settings.gradle.kts
+        pluginManagement {
+            repositories {
+                google()
+                mavenCentral()
+                gradlePluginPortal()
             }
-            dependencyResolutionManagement {
-                repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-                repositories {
-                    google()
-                    mavenCentral()
-                }
+        }
+        dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories {
+                google()
+                mavenCentral()
             }
-            rootProject.name = "TotpApp"
-            include(":app")
-            """),
+        }
+        rootProject.name = "TotpApp"
+        include(":app")
+        EOF
 
-            "build.gradle.kts": d("""\
-            plugins {
-                id("com.android.application") version "8.1.0" apply false
-                id("org.jetbrains.kotlin.android") version "1.9.0" apply false
-            }
-            """),
+        cat << 'EOF' > build.gradle.kts
+        plugins {
+            id("com.android.application") version "8.1.0" apply false
+            id("org.jetbrains.kotlin.android") version "1.9.0" apply false
+        }
+        EOF
 
-            "gradle.properties": d("""\
-            android.useAndroidX=true
-            kotlin.code.style=official
-            android.nonTransitiveRClass=true
-            """),
+        cat << 'EOF' > gradle.properties
+        android.useAndroidX=true
+        kotlin.code.style=official
+        android.nonTransitiveRClass=true
+        EOF
 
-            "app/build.gradle.kts": d("""\
-            plugins {
-                id("com.android.application")
-                id("org.jetbrains.kotlin.android")
-            }
-
-            android {
-                namespace = "com.example.totpapp"
-                compileSdk = 34
-
-                defaultConfig {
-                    applicationId = "com.example.totpapp"
-                    minSdk = 26
-                    targetSdk = 34
-                    versionCode = 1
-                    versionName = "1.0"
-                }
-
-                buildFeatures {
-                    compose = true
-                }
-                composeOptions {
-                    kotlinCompilerExtensionVersion = "1.5.1"
-                }
-                compileOptions {
-                    sourceCompatibility = JavaVersion.VERSION_17
-                    targetCompatibility = JavaVersion.VERSION_17
-                }
-                kotlinOptions {
-                    jvmTarget = "17"
-                }
-            }
-
-            dependencies {
-                implementation("androidx.core:core-ktx:1.12.0")
-                implementation("androidx.activity:activity-compose:1.8.0")
-                implementation(platform("androidx.compose:compose-bom:2023.10.01"))
-                implementation("androidx.compose.ui:ui")
-                implementation("androidx.compose.ui:ui-graphics")
-                implementation("androidx.compose.ui:ui-tooling-preview")
-                implementation("androidx.compose.material3:material3")
-                implementation("org.jboss.aerogear:aerogear-otp-java:1.0.0")
-            }
-            """),
-
-            "app/src/main/AndroidManifest.xml": d("""\
-            <?xml version="1.0" encoding="utf-8"?>
-            <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-                <application
-                    android:allowBackup="true"
-                    android:label="TOTP Gen">
-                    <activity
-                        android:name=".MainActivity"
-                        android:exported="true">
-                        <intent-filter>
-                            <action android:name="android.intent.action.MAIN" />
-                            <category android:name="android.intent.category.LAUNCHER" />
-                        </intent-filter>
-                    </activity>
-                </application>
-            </manifest>
-            """),
-
-            "app/src/main/java/com/example/totpapp/MainActivity.kt": d("""\
-            package com.example.totpapp
-
-            import android.content.ClipboardManager
-            import android.content.Context
-            import android.os.Bundle
-            import android.widget.Toast
-            import androidx.activity.ComponentActivity
-            import androidx.activity.compose.setContent
-            import androidx.compose.foundation.background
-            import androidx.compose.foundation.layout.*
-            import androidx.compose.foundation.shape.CircleShape
-            import androidx.compose.foundation.shape.RoundedCornerShape
-            import androidx.compose.material3.*
-            import androidx.compose.runtime.*
-            import androidx.compose.ui.Alignment
-            import androidx.compose.ui.Modifier
-            import androidx.compose.ui.geometry.Offset
-            import androidx.compose.ui.geometry.Size
-            import androidx.compose.ui.graphics.Brush
-            import androidx.compose.ui.graphics.Color
-            import androidx.compose.ui.graphics.StrokeCap
-            import androidx.compose.ui.graphics.drawscope.Stroke
-            import androidx.compose.ui.platform.LocalContext
-            import androidx.compose.ui.text.font.FontWeight
-            import androidx.compose.ui.unit.dp
-            import androidx.compose.ui.unit.sp
-            import kotlinx.coroutines.CoroutineScope
-            import kotlinx.coroutines.Dispatchers
-            import kotlinx.coroutines.delay
-            import kotlinx.coroutines.launch
-            import org.jboss.aerogear.otp.Totp
-
-            class MainActivity : ComponentActivity() {
-                override fun onCreate(savedInstanceState: Bundle?) {
-                    super.onCreate(savedInstanceState)
-                    setContent {
-                        Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF121212), Color(0xFF1A1E2E)), Offset.Zero, Offset.Infinite))) {
-                            TotpScreen()
-                        }
-                    }
-                }
-            }
-
-            @Composable
-            fun TotpScreen() {
-                val context = LocalContext.current
-                var secretKey by remember { mutableStateOf("") }
-                var generatedCode by remember { mutableStateOf("------") }
-                var timeLeft by remember { mutableStateOf(30) }
-                var isError by remember { mutableStateOf(false) }
-
-                DisposableEffect(Unit) {
-                    val job = CoroutineScope(Dispatchers.Main).launch {
-                        while (true) {
-                            timeLeft = 30 - (System.currentTimeMillis() / 1000 % 30).toInt()
-                            delay(1000L)
-                        }
-                    }
-                    onDispose { job.cancel() }
-                }
-
-                LaunchedEffect(secretKey, timeLeft) {
-                    if (secretKey.isNotBlank()) {
-                        try {
-                            val cleanKey = secretKey.replace(" ", "").uppercase()
-                            org.jboss.aerogear.otp.api.Base32.decode(cleanKey)
-                            generatedCode = Totp(cleanKey).now()
-                            isError = false
-                        } catch (e: Exception) { isError = true; generatedCode = "Ошибка" }
-                    } else { generatedCode = "------"; isError = false }
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier = Modifier.fillMaxSize().padding(24.dp)) {
-                    Text("2FA Генератор", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Spacer(Modifier.height(32.dp))
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(200.dp).background(Color(0xFF1E1E1E), CircleShape)) {
-                        Canvas(modifier = Modifier.size(190.dp)) {
-                            val stroke = 6.dp.toPx(); val r = size.minDimension / 2 - stroke / 2
-                            drawArc(Color(0xFF333333), -90f, 360f, false, Stroke(stroke, cap = StrokeCap.Round), Size(r*2, r*2), Offset(stroke/2, stroke/2))
-                            drawArc(Brush.linearGradient(listOf(Color(0xFF6C63FF), Color(0xFF00D9FF))), -90f, (timeLeft.toFloat()/30f)*360f, false, Stroke(stroke, cap = StrokeCap.Round), Size(r*2, r*2), Offset(stroke/2, stroke/2))
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(generatedCode, fontSize = 42.sp, fontWeight = FontWeight.Black, color = if (isError) Color.Red else Color.White)
-                            Text("${timeLeft}с", fontSize = 16.sp, color = Color.Gray)
-                        }
-                    }
-                    Spacer(Modifier.height(40.dp))
-                    OutlinedTextField(value = secretKey, onValueChange = { secretKey = it }, label = { Text("Секретный ключ") }, isError = isError, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6C63FF), unfocusedBorderColor = Color.Gray, cursorColor = Color(0xFF6C63FF)), modifier = Modifier.padding(horizontal = 16.dp))
-                    Spacer(Modifier.height(24.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
-                        Button(onClick = { val c = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager; val cl = c.primaryClip; if (cl != null && cl.itemCount > 0) secretKey = cl.getItemAt(0).text.toString() else Toast.makeText(context, "Пусто", Toast.LENGTH_SHORT).show() }, colors = ButtonDefaults.buttonColors(Color(0xFF2C2C2C)), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) { Text("Вставить", color = Color.White, fontWeight = FontWeight.Bold) }
-                        Button(onClick = { if (generatedCode != "------" && !isError) { (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("TOTP", generatedCode)); Toast.makeText(context, "Скопировано!", Toast.LENGTH_SHORT).show() } }, colors = ButtonDefaults.buttonColors(Color(0xFF6C63FF)), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) { Text("Скопировать", color = Color.White, fontWeight = FontWeight.Bold) }
-                    }
-                }
-            }
-            """),
-
-            "app/src/main/res/values/strings.xml": d("""\
-            <resources>
-                <string name="app_name">TOTP Gen</string>
-            </resources>
-            """)
+        cat << 'EOF' > app/build.gradle.kts
+        plugins {
+            id("com.android.application")
+            id("org.jetbrains.kotlin.android")
         }
 
-        for filepath, content in files.items():
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(content)
+        android {
+            namespace = "com.example.totpapp"
+            compileSdk = 34
 
-        print("Project generated successfully!")
-        PYTHON_SCRIPT
+            defaultConfig {
+                applicationId = "com.example.totpapp"
+                minSdk = 26
+                targetSdk = 34
+                versionCode = 1
+                versionName = "1.0"
+            }
+
+            buildFeatures {
+                compose = true
+            }
+            composeOptions {
+                kotlinCompilerExtensionVersion = "1.5.1"
+            }
+            compileOptions {
+                sourceCompatibility = JavaVersion.VERSION_17
+                targetCompatibility = JavaVersion.VERSION_17
+            }
+            kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+
+        dependencies {
+            implementation("androidx.core:core-ktx:1.12.0")
+            implementation("androidx.activity:activity-compose:1.8.0")
+            implementation(platform("androidx.compose:compose-bom:2023.10.01"))
+            implementation("androidx.compose.ui:ui")
+            implementation("androidx.compose.ui:ui-graphics")
+            implementation("androidx.compose.ui:ui-tooling-preview")
+            implementation("androidx.compose.material3:material3")
+            implementation("org.jboss.aerogear:aerogear-otp-java:1.0.0")
+        }
+        EOF
+
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application
+                android:allowBackup="true"
+                android:label="TOTP Gen">
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+        cat << 'EOF' > app/src/main/java/com/example/totpapp/MainActivity.kt
+        package com.example.totpapp
+
+        import android.content.ClipboardManager
+        import android.content.Context
+        import android.os.Bundle
+        import android.widget.Toast
+        import androidx.activity.ComponentActivity
+        import androidx.activity.compose.setContent
+        import androidx.compose.foundation.background
+        import androidx.compose.foundation.layout.*
+        import androidx.compose.foundation.shape.CircleShape
+        import androidx.compose.foundation.shape.RoundedCornerShape
+        import androidx.compose.material3.*
+        import androidx.compose.runtime.*
+        import androidx.compose.ui.Alignment
+        import androidx.compose.ui.Modifier
+        import androidx.compose.ui.geometry.Offset
+        import androidx.compose.ui.geometry.Size
+        import androidx.compose.ui.graphics.Brush
+        import androidx.compose.ui.graphics.Color
+        import androidx.compose.ui.graphics.StrokeCap
+        import androidx.compose.ui.graphics.drawscope.Stroke
+        import androidx.compose.ui.platform.LocalContext
+        import androidx.compose.ui.text.font.FontWeight
+        import androidx.compose.ui.unit.dp
+        import androidx.compose.ui.unit.sp
+        import kotlinx.coroutines.CoroutineScope
+        import kotlinx.coroutines.Dispatchers
+        import kotlinx.coroutines.delay
+        import kotlinx.coroutines.launch
+        import org.jboss.aerogear.otp.Totp
+
+        class MainActivity : ComponentActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                setContent {
+                    Box(modifier = Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF121212), Color(0xFF1A1E2E)), Offset.Zero, Offset.Infinite))) {
+                        TotpScreen()
+                    }
+                }
+            }
+        }
+
+        @Composable
+        fun TotpScreen() {
+            val context = LocalContext.current
+            var secretKey by remember { mutableStateOf("") }
+            var generatedCode by remember { mutableStateOf("------") }
+            var timeLeft by remember { mutableStateOf(30) }
+            var isError by remember { mutableStateOf(false) }
+
+            DisposableEffect(Unit) {
+                val job = CoroutineScope(Dispatchers.Main).launch {
+                    while (true) {
+                        timeLeft = 30 - (System.currentTimeMillis() / 1000 % 30).toInt()
+                        delay(1000L)
+                    }
+                }
+                onDispose { job.cancel() }
+            }
+
+            LaunchedEffect(secretKey, timeLeft) {
+                if (secretKey.isNotBlank()) {
+                    try {
+                        val cleanKey = secretKey.replace(" ", "").uppercase()
+                        org.jboss.aerogear.otp.api.Base32.decode(cleanKey)
+                        generatedCode = Totp(cleanKey).now()
+                        isError = false
+                    } catch (e: Exception) { isError = true; generatedCode = "Ошибка" }
+                } else { generatedCode = "------"; isError = false }
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                Text("2FA Генератор", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(Modifier.height(32.dp))
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(200.dp).background(Color(0xFF1E1E1E), CircleShape)) {
+                    Canvas(modifier = Modifier.size(190.dp)) {
+                        val stroke = 6.dp.toPx(); val r = size.minDimension / 2 - stroke / 2
+                        drawArc(Color(0xFF333333), -90f, 360f, false, Stroke(stroke, cap = StrokeCap.Round), Size(r*2, r*2), Offset(stroke/2, stroke/2))
+                        drawArc(Brush.linearGradient(listOf(Color(0xFF6C63FF), Color(0xFF00D9FF))), -90f, (timeLeft.toFloat()/30f)*360f, false, Stroke(stroke, cap = StrokeCap.Round), Size(r*2, r*2), Offset(stroke/2, stroke/2))
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(generatedCode, fontSize = 42.sp, fontWeight = FontWeight.Black, color = if (isError) Color.Red else Color.White)
+                        Text("${timeLeft}с", fontSize = 16.sp, color = Color.Gray)
+                    }
+                }
+                Spacer(Modifier.height(40.dp))
+                OutlinedTextField(value = secretKey, onValueChange = { secretKey = it }, label = { Text("Секретный ключ") }, isError = isError, singleLine = true, shape = RoundedCornerShape(12.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF6C63FF), unfocusedBorderColor = Color.Gray, cursorColor = Color(0xFF6C63FF)), modifier = Modifier.padding(horizontal = 16.dp))
+                Spacer(Modifier.height(24.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Button(onClick = { val c = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager; val cl = c.primaryClip; if (cl != null && cl.itemCount > 0) secretKey = cl.getItemAt(0).text.toString() else Toast.makeText(context, "Пусто", Toast.LENGTH_SHORT).show() }, colors = ButtonDefaults.buttonColors(Color(0xFF2C2C2C)), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) { Text("Вставить", color = Color.White, fontWeight = FontWeight.Bold) }
+                    Button(onClick = { if (generatedCode != "------" && !isError) { (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(android.content.ClipData.newPlainText("TOTP", generatedCode)); Toast.makeText(context, "Скопировано!", Toast.LENGTH_SHORT).show() } }, colors = ButtonDefaults.buttonColors(Color(0xFF6C63FF)), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f)) { Text("Скопировать", color = Color.White, fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+        EOF
+
+        cat << 'EOF' > app/src/main/res/values/strings.xml
+        <resources>
+            <string name="app_name">TOTP Gen</string>
+        </resources>
+        EOF
 
     - name: Setup Stable Gradle 8.4
       run: |
