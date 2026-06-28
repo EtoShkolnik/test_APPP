@@ -229,17 +229,23 @@ jobs:
         print("Project generated successfully!")
         PYTHON_SCRIPT
 
+    - name: Setup Stable Gradle 8.4
+      run: |
+        mkdir -p gradle/wrapper
+        curl -sL https://github.com/gradle/gradle/raw/v8.4.0/gradlew -o gradlew
+        curl -sL https://github.com/gradle/gradle/raw/v8.4.0/gradlew.bat -o gradlew.bat
+        curl -sL https://github.com/gradle/gradle/raw/v8.4.0/gradle/wrapper/gradle-wrapper.properties -o gradle/wrapper/gradle-wrapper.properties
+        curl -sL https://github.com/gradle/gradle/raw/v8.4.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
+        chmod +x gradlew
+
     - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Generate Gradle Wrapper
-      run: gradle wrapper --gradle-version 8.4
-
     - name: Build Debug APK
-      run: chmod +x gradlew && ./gradlew assembleDebug
+      run: ./gradlew assembleDebug
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
